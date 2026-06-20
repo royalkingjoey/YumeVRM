@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VRM Avatar Viewer</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="viewer-canvas"></canvas>
+
+      <button id="settings-btn" class="glass-btn icon-btn" type="button" title="Settings" aria-label="Open settings">
+        &#9881;
+      </button>
+
+      <button id="dev-btn" class="glass-btn icon-btn" type="button" title="Developer tools" aria-label="Open developer tools">
+        &#128736;
+      </button>
+
+      <div id="toast" class="status" hidden></div>
+
+      <div id="chat-overlay">
+        <div id="chat-response" class="chat-response" hidden></div>
+        <form id="chat-form" class="glass-panel chat-bar">
+          <input
+            id="chat-input"
+            type="text"
+            placeholder="Say something to your companion&hellip;"
+            autocomplete="off"
+          />
+          <button id="chat-send-btn" class="glass-btn icon-btn" type="submit" aria-label="Send">
+            &#10148;
+          </button>
+        </form>
+      </div>
+
+      <div id="settings-overlay" hidden>
+        <div id="settings-panel" class="glass-panel">
+          <header class="settings-header">
+            <h2>Settings</h2>
+            <button id="settings-close-btn" class="glass-btn icon-btn" type="button" aria-label="Close settings">
+              &#10005;
+            </button>
+          </header>
+
+          <nav class="settings-tabs">
+            <button class="tab-btn" data-tab="general" type="button">General</button>
+            <button class="tab-btn" data-tab="ai" type="button">Companion</button>
+            <button class="tab-btn" data-tab="personas" type="button">Personas</button>
+            <button class="tab-btn" data-tab="memory" type="button">Long-term Memory</button>
+            <button class="tab-btn" data-tab="models" type="button">Avatars</button>
+            <button class="tab-btn" data-tab="animations" type="button">Animations</button>
+            <button class="tab-btn" data-tab="backgrounds" type="button">Backgrounds</button>
+            <button class="tab-btn" data-tab="display" type="button">Chat Display</button>
+            <button class="tab-btn" data-tab="voice" type="button">Voice</button>
+          </nav>
+
+          <div class="settings-body">
+            <section class="tab-panel" data-tab-panel="general" hidden>
+              <div class="field-group">
+                <label class="checkbox-row" for="general-create-defaults">
+                  <input id="general-create-defaults" type="checkbox" />
+                  <span>Create a default persona &amp; chat display on launch</span>
+                </label>
+              </div>
+
+              <div class="field-group">
+                <label class="checkbox-row" for="general-developer-mode">
+                  <input id="general-developer-mode" type="checkbox" />
+                  <span>Developer mode (show developer tools button)</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="ai">
+              <div class="field-group">
+                <label for="ai-provider">Provider</label>
+                <select id="ai-provider">
+                  <option value="ollama">Ollama (local)</option>
+                  <option value="openrouter">OpenRouter</option>
+                </select>
+              </div>
+
+              <!-- Ollama -->
+              <div class="ai-provider-fields" data-ai-provider="ollama" hidden>
+                <div class="field-group">
+                  <label for="ollama-base-url">Ollama server URL</label>
+                  <input id="ollama-base-url" type="text" placeholder="http://localhost:11434" />
+                </div>
+                <div class="field-group">
+                  <label for="ollama-model-select">Model</label>
+                  <div class="row">
+                    <select id="ollama-model-select">
+                      <option value="">No models found</option>
+                    </select>
+                    <button id="ollama-refresh-btn" type="button" title="Refresh model list">&#8635;</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- OpenRouter -->
+              <div class="ai-provider-fields" data-ai-provider="openrouter" hidden>
+                <div class="field-group">
+                  <label for="openrouter-api-key">API key</label>
+                  <input id="openrouter-api-key" type="password" placeholder="sk-or-…" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label for="openrouter-model">Model</label>
+                  <input id="openrouter-model" type="text" placeholder="anthropic/claude-3.5-sonnet" />
+                </div>
+              </div>
+
+              <div id="ollama-status" class="status" data-kind="info" hidden></div>
+
+              <div class="field-group">
+                <label>Chat memory</label>
+                <button id="chat-memory-clear-btn" type="button">Clear chat memory</button>
+              </div>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="personas" hidden>
+              <div class="field-group">
+                <label for="ollama-system-prompt">System prompt</label>
+                <textarea id="ollama-system-prompt" rows="3"></textarea>
+              </div>
+
+              <div class="field-group">
+                <label for="ollama-temperature">Temperature (<span id="ollama-temperature-value"></span>)</label>
+                <input id="ollama-temperature" type="range" min="0" max="2" step="0.05" />
+              </div>
+
+              <div class="field-group">
+                <label for="ollama-context-length">Context length (tokens)</label>
+                <input id="ollama-context-length" type="number" min="512" max="131072" step="512" />
+              </div>
+
+              <div class="field-group">
+                <label for="persona-name-input">Save current persona as</label>
+                <div class="row">
+                  <input id="persona-name-input" type="text" placeholder="Persona name" />
+                  <button id="persona-save-btn" type="button">Save</button>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label for="persona-select">Saved personas</label>
+                <div class="row">
+                  <select id="persona-select">
+                    <option value="">No saved personas</option>
+                  </select>
+                  <button id="persona-delete-btn" type="button" title="Delete selected persona" disabled>
+                    &#x2715;
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="memory" hidden>
+              <div class="field-group">
+                <label for="memory-persona-select">Persona card</label>
+                <select id="memory-persona-select">
+                  <option value="">No saved personas</option>
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label for="memory-content">Long-term memory</label>
+                <textarea
+                  id="memory-content"
+                  rows="10"
+                  placeholder="This card has no long-term memory yet. Chat with your companion, then press “Save to long-term memory” to summarise the conversation here. You can also edit these notes by hand."
+                ></textarea>
+              </div>
+
+              <div class="field-group">
+                <button id="memory-save-btn" type="button">Save to long-term memory</button>
+              </div>
+
+              <div id="memory-status" class="status" data-kind="info" hidden></div>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="models" hidden>
+              <label class="file-picker" for="vrm-file-input">
+                <span>Choose .vrm file</span>
+                <input type="file" id="vrm-file-input" accept=".vrm" />
+              </label>
+
+              <div class="field-group">
+                <label for="vrm-library-select">Saved avatars</label>
+                <div class="row">
+                  <select id="vrm-library-select">
+                    <option value="">No saved models</option>
+                  </select>
+                  <button id="delete-saved-btn" type="button" title="Delete selected saved model" disabled>
+                    &#x2715;
+                  </button>
+                </div>
+              </div>
+
+              <button id="reset-view-btn" type="button" disabled>Reset View</button>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="animations" hidden>
+              <p class="field-hint">
+                Upload VRM animation (<code>.vrma</code>) files to use as custom actions and
+                demeanors, alongside the built-in ones. An <strong>action</strong> plays once as a
+                one-shot gesture (<code>[action:name]</code>); a <strong>demeanor</strong> loops as
+                a persistent mood until chat memory is cleared (<code>[demeanor:name]</code>).
+                Uploaded animations are also listed in the developer tools panel.
+              </p>
+
+              <div class="field-group">
+                <label for="animation-type">Use uploaded animation as</label>
+                <select id="animation-type">
+                  <option value="action">Action (one-shot gesture)</option>
+                  <option value="demeanor">Demeanor (looping mood)</option>
+                </select>
+              </div>
+
+              <label class="file-picker" for="animation-file-input">
+                <span>Choose .vrma file</span>
+                <input type="file" id="animation-file-input" accept=".vrma" />
+              </label>
+
+              <div class="field-group">
+                <label for="animation-library-select">Custom animations</label>
+                <div class="row">
+                  <select id="animation-library-select">
+                    <option value="">No saved animations</option>
+                  </select>
+                  <button id="delete-animation-btn" type="button" title="Delete selected animation" disabled>
+                    &#x2715;
+                  </button>
+                </div>
+              </div>
+
+              <button id="animation-preview-btn" type="button">Preview selected on avatar</button>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="backgrounds" hidden>
+              <label class="file-picker" for="background-file-input">
+                <span>Choose background image</span>
+                <input type="file" id="background-file-input" accept="image/*" />
+              </label>
+
+              <div class="field-group">
+                <label for="background-library-select">Saved backgrounds</label>
+                <div class="row">
+                  <select id="background-library-select">
+                    <option value="">No saved backgrounds</option>
+                  </select>
+                  <button id="delete-background-btn" type="button" title="Delete selected saved background" disabled>
+                    &#x2715;
+                  </button>
+                </div>
+              </div>
+
+              <button id="reset-background-btn" type="button">Reset Background</button>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="display" hidden>
+              <label class="file-picker" for="font-file-input">
+                <span>Upload font (.ttf, .otf, .woff, .woff2)</span>
+                <input type="file" id="font-file-input" accept=".ttf,.otf,.woff,.woff2" />
+              </label>
+
+              <div class="field-group">
+                <label for="font-library-select">Chat font</label>
+                <div class="row">
+                  <select id="font-library-select">
+                    <option value="">Default font</option>
+                  </select>
+                  <button id="delete-font-btn" type="button" title="Delete selected saved font" disabled>
+                    &#x2715;
+                  </button>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label for="chat-font-size">Text size (<span id="chat-font-size-value"></span>px)</label>
+                <input id="chat-font-size" type="range" min="12" max="48" step="1" />
+              </div>
+
+              <div class="field-group">
+                <label for="chat-font-color">Text colour</label>
+                <input id="chat-font-color" type="color" />
+              </div>
+
+              <div class="field-group">
+                <label class="checkbox-row" for="chat-hide-textbox">
+                  <input id="chat-hide-textbox" type="checkbox" />
+                  <span>Hide chat response text box</span>
+                </label>
+              </div>
+
+              <div class="field-group">
+                <label for="display-preset-name-input">Save current display as</label>
+                <div class="row">
+                  <input id="display-preset-name-input" type="text" placeholder="Display preset name" />
+                  <button id="display-preset-save-btn" type="button">Save</button>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label for="display-preset-select">Saved displays</label>
+                <div class="row">
+                  <select id="display-preset-select">
+                    <option value="">No saved displays</option>
+                  </select>
+                  <button id="display-preset-delete-btn" type="button" title="Delete selected display preset" disabled>
+                    &#x2715;
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="tab-panel" data-tab-panel="voice" hidden>
+              <div class="field-group">
+                <label class="checkbox-row" for="tts-enabled">
+                  <input id="tts-enabled" type="checkbox" />
+                  <span>Speak assistant replies aloud</span>
+                </label>
+              </div>
+
+              <div class="field-group">
+                <label for="tts-provider">Provider</label>
+                <select id="tts-provider">
+                  <option value="openai">OpenAI-compatible</option>
+                  <option value="elevenlabs">ElevenLabs</option>
+                  <option value="fishaudio">Fish Audio (cloud)</option>
+                  <option value="cartesia">Cartesia</option>
+                  <option value="google">Google Cloud</option>
+                  <option value="azure">Azure</option>
+                </select>
+              </div>
+
+              <!-- OpenAI-compatible -->
+              <div class="tts-provider-fields" data-tts-provider="openai" hidden>
+                <div class="field-group">
+                  <label for="tts-openai-base-url">Server URL</label>
+                  <input id="tts-openai-base-url" type="text" placeholder="https://api.openai.com" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-openai-api-key">API key</label>
+                  <input id="tts-openai-api-key" type="password" placeholder="sk-…" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-openai-model">Model</label>
+                  <input id="tts-openai-model" type="text" placeholder="tts-1" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-openai-voice">Voice</label>
+                  <input id="tts-openai-voice" type="text" placeholder="alloy" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-openai-format">Audio format</label>
+                  <select id="tts-openai-format">
+                    <option value="mp3">MP3 (default, needs ffmpeg on most local servers)</option>
+                    <option value="wav">WAV (best for local servers, e.g. Chatterbox)</option>
+                    <option value="flac">FLAC</option>
+                    <option value="aac">AAC</option>
+                    <option value="opus">Opus</option>
+                    <option value="pcm">PCM</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- ElevenLabs -->
+              <div class="tts-provider-fields" data-tts-provider="elevenlabs" hidden>
+                <div class="field-group">
+                  <label for="tts-elevenlabs-api-key">API key</label>
+                  <input id="tts-elevenlabs-api-key" type="password" placeholder="ElevenLabs API key" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-elevenlabs-model">Model id</label>
+                  <input id="tts-elevenlabs-model" type="text" placeholder="eleven_multilingual_v2" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-elevenlabs-voice">Voice id</label>
+                  <input id="tts-elevenlabs-voice" type="text" placeholder="e.g. 21m00Tcm4TlvDq8ikWAM" />
+                </div>
+              </div>
+
+              <!-- Fish Audio -->
+              <div class="tts-provider-fields" data-tts-provider="fishaudio" hidden>
+                <div class="field-group">
+                  <label for="tts-fishaudio-api-key">API key</label>
+                  <input id="tts-fishaudio-api-key" type="password" placeholder="Fish Audio API key" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-fishaudio-model">Model</label>
+                  <input id="tts-fishaudio-model" type="text" placeholder="speech-1.6" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-fishaudio-voice">Voice (reference id)</label>
+                  <input id="tts-fishaudio-voice" type="text" placeholder="reference_id" />
+                </div>
+              </div>
+
+              <!-- Cartesia -->
+              <div class="tts-provider-fields" data-tts-provider="cartesia" hidden>
+                <div class="field-group">
+                  <label for="tts-cartesia-api-key">API key</label>
+                  <input id="tts-cartesia-api-key" type="password" placeholder="Cartesia API key" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-cartesia-model">Model id</label>
+                  <input id="tts-cartesia-model" type="text" placeholder="sonic-2" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-cartesia-voice">Voice id</label>
+                  <input id="tts-cartesia-voice" type="text" placeholder="voice id" />
+                </div>
+              </div>
+
+              <!-- Google -->
+              <div class="tts-provider-fields" data-tts-provider="google" hidden>
+                <div class="field-group">
+                  <label for="tts-google-api-key">API key</label>
+                  <input id="tts-google-api-key" type="password" placeholder="Google Cloud API key" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-google-language">Language code</label>
+                  <input id="tts-google-language" type="text" placeholder="en-US" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-google-voice">Voice name</label>
+                  <input id="tts-google-voice" type="text" placeholder="en-US-Neural2-F" />
+                </div>
+              </div>
+
+              <!-- Azure -->
+              <div class="tts-provider-fields" data-tts-provider="azure" hidden>
+                <div class="field-group">
+                  <label for="tts-azure-api-key">Subscription key</label>
+                  <input id="tts-azure-api-key" type="password" placeholder="Azure Speech key" autocomplete="off" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-azure-region">Region</label>
+                  <input id="tts-azure-region" type="text" placeholder="eastus" />
+                </div>
+                <div class="field-group">
+                  <label for="tts-azure-voice">Voice name</label>
+                  <input id="tts-azure-voice" type="text" placeholder="en-US-JennyNeural" />
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label for="tts-speed">Playback speed (<span id="tts-speed-value"></span>x)</label>
+                <input id="tts-speed" type="range" min="0.25" max="4" step="0.05" />
+              </div>
+
+              <button id="tts-test-btn" type="button">Test voice</button>
+
+              <div id="tts-status" class="status" data-kind="info" hidden></div>
+            </section>
+          </div>
+
+          <div id="settings-status" class="status" hidden></div>
+        </div>
+      </div>
+
+      <div id="dev-overlay" hidden>
+        <div id="dev-panel" class="glass-panel">
+          <header class="settings-header">
+            <h2>Developer Tools</h2>
+            <button id="dev-close-btn" class="glass-btn icon-btn" type="button" aria-label="Close developer tools">
+              &#10005;
+            </button>
+          </header>
+
+          <div class="settings-body">
+            <section class="tab-panel">
+              <div class="field-group">
+                <label>Demeanor (default animation, persists until chat memory cleared)</label>
+                <div class="dev-btn-row">
+                  <button type="button" data-dev-demeanor="neutral">Neutral</button>
+                  <button type="button" data-dev-demeanor="happy">Happy</button>
+                  <button type="button" data-dev-demeanor="angry">Angry</button>
+                  <button type="button" data-dev-demeanor="sad">Sad</button>
+                  <button type="button" data-dev-demeanor="relaxed">Relaxed</button>
+                  <button type="button" data-dev-demeanor="surprised">Surprised</button>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label>Emotion (temporary expression, lasts until speech ends)</label>
+                <div class="dev-btn-row">
+                  <button type="button" data-dev-emotion="neutral">Neutral</button>
+                  <button type="button" data-dev-emotion="happy">Happy</button>
+                  <button type="button" data-dev-emotion="angry">Angry</button>
+                  <button type="button" data-dev-emotion="sad">Sad</button>
+                  <button type="button" data-dev-emotion="relaxed">Relaxed</button>
+                  <button type="button" data-dev-emotion="surprised">Surprised</button>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label>Action (one-shot gesture)</label>
+                <div class="dev-btn-row">
+                  <button type="button" data-dev-action="laugh">Laugh</button>
+                  <button type="button" data-dev-action="wink">Wink</button>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label>Custom demeanor (uploaded .vrma, looped until chat memory cleared)</label>
+                <div id="dev-custom-demeanors" class="dev-btn-row"></div>
+              </div>
+
+              <div class="field-group">
+                <label>Custom action (uploaded .vrma, played once)</label>
+                <div id="dev-custom-actions" class="dev-btn-row"></div>
+              </div>
+
+              <div class="field-group">
+                <label for="dev-insert-message">Insert message (speaks and displays it as if the AI said it; supports [demeanor:...] / [emotion:...] / [action:...] tags)</label>
+                <textarea id="dev-insert-message" rows="3" placeholder="Type a message…"></textarea>
+                <div class="dev-btn-row">
+                  <button id="dev-insert-message-btn" type="button">Speak as AI</button>
+                </div>
+              </div>
+
+              <div class="field-group">
+                <div class="row">
+                  <label style="flex: 1">Debug console</label>
+                  <button id="dev-console-clear-btn" type="button">Clear</button>
+                </div>
+                <div id="dev-console" class="dev-console"></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div id="loading-overlay" hidden>
+        <div class="spinner"></div>
+        <p id="loading-text">Loading model&hellip;</p>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
