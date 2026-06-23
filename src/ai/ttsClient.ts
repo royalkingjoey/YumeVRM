@@ -71,12 +71,6 @@ export async function requestSpeech(text: string, request: TtsRequest): Promise<
   return response;
 }
 
-/** Synthesizes a short test phrase and discards the result, to verify the TTS settings work. */
-export async function testTtsConnection(request: TtsRequest): Promise<void> {
-  const response = await requestSpeech('Voice check.', request);
-  await response.body?.cancel();
-}
-
 async function safeReadError(response: Response): Promise<string | null> {
   try {
     const text = await response.text();

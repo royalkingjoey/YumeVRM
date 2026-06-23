@@ -68,9 +68,9 @@ import {
 } from './ai/aiClient';
 import {
   requestSpeech,
-  testTtsConnection,
   ttsRequestFromSettings,
   activeTtsFormat,
+  type TtsRequest,
 } from './ai/ttsClient';
 import { playAudioResponse, type PlaybackHandle } from './audio/ttsPlayer';
 
@@ -860,12 +860,30 @@ export class App {
     await saveSettings(this.settings);
   }
 
-  /** Synthesizes a short test phrase with the current (possibly unsaved) Voice tab settings. */
+  /**
+   * Synthesizes a short test phrase with the current (possibly unsaved) Voice
+   * tab settings and plays it aloud, driving the avatar's lip-sync, so the user
+   * can actually hear the selected voice.
+   */
   private async handleTtsTest(): Promise<void> {
     const provider = this.ui.getTtsProvider();
+    const request: TtsRequest = { provider, config: this.ui.getTtsConfig(provider) };
     this.ui.setTtsStatus('Testing…', 'info');
+
+    // Don't let an in-progress reply and the test talk over each other.
+    this.stopSpeaking();
+
     try {
-      await testTtsConnection({ provider, config: this.ui.getTtsConfig(provider) });
+      const response = await requestSpeech('Voice check. This is how I sound.', request);
+      const handle = playAudioResponse(
+        response,
+        this.ui.getTtsSpeed(),
+        activeTtsFormat(request),
+        this.lipSync,
+      );
+      this.currentSpeech = handle;
+      this.ui.setTtsStatus('Playing test phrase…', 'success');
+      await handle.finished;
       this.ui.setTtsStatus('Connected. Voice synthesis is working.', 'success');
     } catch (error) {
       console.error('TTS test failed:', error);
@@ -873,6 +891,10 @@ export class App {
         error instanceof Error ? error.message : 'Could not reach the text-to-speech provider.',
         'error',
       );
+    } finally {
+      if (this.currentSpeech) {
+        this.currentSpeech = null;
+      }
     }
   }
 
